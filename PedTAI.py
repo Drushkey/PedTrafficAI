@@ -1,3 +1,6 @@
+import cv2
+import cvutils
+
 def config_mod(param_array, vidfilename,datafilename,homofilename,maskfilename):
 	cfg = open('tracking.cfg', 'w')
 	cfg.write('# Automatically generated configuration file for Traffic Intelligence\n')
@@ -52,6 +55,27 @@ def config_mod(param_array, vidfilename,datafilename,homofilename,maskfilename):
 	cfg.write('crossing-zones = false\nprediction-method = na\nnpredicted-trajectories = 10\nmin-acceleration = -9.1\n')
 	cfg.write('max-acceleration = 2\nmax-steering = 0.5\nuse-features-prediction = true')
 
+def point_corresp_mod(pointcorr_name,):
+	pct = open(pointcorr_name,'r')
+	pclines = pct.readlines()
+	video_lines = []
+	xranges = []
+	yranges = []
+	for x in range(2,6):
+		video_lines.append(pclines[x].split())
+		for y in range(0,4):
+			video_lines[x-2][y] = video_lines[x-2][y].split('e+')
+
+	point_arrays = []
+	#each point:
+	# [[X0, Y0]
+	#  [X1, Y1]]
+	for a in range (0,4):
+		point_arrays.append([[float(video_lines[0][a][0])*(10**float(video_lines[0][a][1])),
+			float(video_lines[1][a][0])*(10**float(video_lines[1][a][1]))],
+			[float(video_lines[2][a][0])*(10**float(video_lines[2][a][1])),
+			float(video_lines[3][a][0])*(10**float(video_lines[3][a][1]))]])
+
 #Array contents
 #	0 - feature-quality
 #	1 - min-feature-distanceklt
@@ -79,5 +103,7 @@ video_filename = 'GP010010.MP4'
 database_filename = 'Test1.sqlite'
 homography_filename = 'TestCaseHomo.txt'
 mask_filename = 'mask1.png'
+
+ext_point_corr_filename = 'ext-point-correspondence.txt'
 
 config_mod(curr_parameters,video_filename,database_filename,homography_filename,mask_filename)
