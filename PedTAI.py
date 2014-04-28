@@ -1,5 +1,6 @@
 import cv2
 import cvutils
+import numpy as np
 
 def config_mod(param_array, vidfilename,datafilename,homofilename,maskfilename):
 	cfg = open('tracking.cfg', 'w')
@@ -55,12 +56,20 @@ def config_mod(param_array, vidfilename,datafilename,homofilename,maskfilename):
 	cfg.write('crossing-zones = false\nprediction-method = na\nnpredicted-trajectories = 10\nmin-acceleration = -9.1\n')
 	cfg.write('max-acceleration = 2\nmax-steering = 0.5\nuse-features-prediction = true')
 
-def point_corresp_mod(pointcorr_name,):
+def point_corresp_mod(pointcorr_name,current_elevation):
 	pct = open(pointcorr_name,'r')
 	pclines = pct.readlines()
 	video_lines = []
-	xranges = []
-	yranges = []
+
+	worldPts = []
+	temp_holder = []
+
+	for j in range(0,2):
+		temp_holder.append(pclines[j].split())
+
+	for k in range(0,4):
+		worldPts.append([float(temp_holder[0][k]),float(temp_holder[1][k])])
+
 	for x in range(2,6):
 		video_lines.append(pclines[x].split())
 		for y in range(0,4):
@@ -75,6 +84,21 @@ def point_corresp_mod(pointcorr_name,):
 			float(video_lines[1][a][0])*(10**float(video_lines[1][a][1]))],
 			[float(video_lines[2][a][0])*(10**float(video_lines[2][a][1])),
 			float(video_lines[3][a][0])*(10**float(video_lines[3][a][1]))]])
+
+	curr_videoPts = []
+
+	for i in range (0,4):
+		delta_x = point_arrays[i][1][0] - point_arrays[i][0][0]
+		delta_y = point_arrays[i][1][1] - point_arrays[i][0][1]
+		curr_videoPts.append([point_arrays[i][0][0] + (delta_x * current_elevation[i]),point_arrays[i][0][1] + (delta_y * current_elevation[i])])
+
+	homography, mask = cv2.findHomography(np.array(curr_videoPts), np.array(worldPts))
+
+	np.savetxt('homography-mod.txt',homography)
+
+
+
+
 
 #Array contents
 #	0 - feature-quality
@@ -103,7 +127,9 @@ video_filename = 'GP010010.MP4'
 database_filename = 'Test1.sqlite'
 homography_filename = 'TestCaseHomo.txt'
 mask_filename = 'mask1.png'
+current_elevation = [0.5,0.5,0.5,0.5]
 
 ext_point_corr_filename = 'ext-point-correspondence.txt'
 
 config_mod(curr_parameters,video_filename,database_filename,homography_filename,mask_filename)
+point_corresp_mod(ext_point_corr_filename, current_elevation)
