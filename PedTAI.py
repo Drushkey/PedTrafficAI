@@ -1,9 +1,335 @@
 import cv2
 import cvutils
 import numpy as np
+import sqlite3
+import math
+import csv
+import os.path
+import subprocess
+import random
 
-def config_mod(param_array, vidfilename,datafilename,homofilename,maskfilename):
-	cfg = open('tracking.cfg', 'w')
+#Settings
+include_homo_altitude_mod = 0
+grouping_mod = 0 #Modify only grouping parameters
+use_previous_point_correspondence = 1
+weight_mota = 1
+weight_motp = 1 - weight_mota
+max_iterations = 800
+
+#Project-specific parameters
+metersperpixel = '0.016533'
+worldfile = 'Floorplan_poly.png'
+videoframefile = 'calib_snapshot.png'
+point_corr_filename = 'ext-point-correspondence.txt'
+storage_filename = 'storage.csv'
+video_filename = 'calib_0.mp4'
+sqlite_filename = 'PedTAI_testrun.sqlite'
+homo_filename = 'homography.txt'
+mask_filename = 'calibmask.png'
+config_filename = 'PedTAI_testrun.cfg'
+ground_truth_sqlite = 'Ground Truth v1.sqlite'
+
+#Optimization parameters
+t_init = 20
+max_match_dist = 0.8 #maximum distance for matching in meters
+lamda = 0.01
+emax = -100 #Threshold solution to consider optimization complete
+imax = 100 #maximum number of iterations
+
+#this is probably garbage
+def simanneal(MOTA,MOTP,tracker_name):
+	import os.path
+
+	if os.path.isfile(storage_filename):
+		with open('storage.csv', 'wb') as csvfile:
+			csvfiller = csv.writer(csvfile, delimiter=' ')
+			emptyrow = [-1000] * 19 + [500,0]
+			csvfiller.writerow(emptyrow)
+	#Generates new random config values
+	storage = open(storage_filename,'w')
+
+#Truncates values before they are written to the config file
+def trunc(f,n):
+	slen = len('%.*f' % (n,f))
+	return str(f)[:slen]
+
+#Finds neighbor solutions; modifies a number of parameters proportional to the current temperature
+def neighbor_solution(temp,t_init,boolelev,prevsol,prevelev, gmod):
+	import random
+	print 'Generating random neighbor solution...'
+	potential_changes = 19
+	if boolelev == 1:
+		potential_changes = 23
+
+	if gmod == 1:
+		potential_changes = 5
+
+	n_changes = min(1,int((temp/(2*t_init))*potential_changes))
+	u = 0
+	values_to_change = []
+	print 'Number of changes to config file: ' + str(n_changes)
+	if gmod == 0:
+		while u < n_changes:
+			success = 0
+			while success == 0:
+				add = random.randint(0,potential_changes)
+				if add in values_to_change:
+					pass
+				else:
+					values_to_change.append(add)
+					success = 1
+					u += 1
+	else:
+		while u < n_changes:
+			success = 0
+			while success == 0:
+				add = random.randint(14,potential_changes)
+				if add in values_to_change:
+					pass
+				else:
+					values_to_change.append(add)
+					success = 1
+					u += 1
+
+	rsolution = []
+	if 0 in values_to_change:
+		rsolution.append(trunc(random.uniform(0,1),6)) #feature-quality
+	else:
+		rsolution.append(prevsol[0])
+	if 1 in values_to_change:
+		rsolution.append(trunc(random.uniform(0,10),6)) #min-feature-distanceklt, assumes max distance of 1 meter between features, probably excessive
+	else:
+		rsolution.append(prevsol[1])
+	if 2 in values_to_change:
+		rsolution.append(random.randint(3,10)) #window-size
+	else:
+		rsolution.append(int(prevsol[2]))
+	if 3 in values_to_change:
+		rsolution.append(trunc(random.uniform(0,1),6)) #k-param
+	else:
+		rsolution.append(prevsol[3])
+	if 4 in values_to_change:
+		rsolution.append(random.randint(1,5)) #pyramid-level
+	else:
+		rsolution.append(int(prevsol[4]))
+	if 5 in values_to_change:
+		rsolution.append(random.randint(2,4)) #ndisplacement
+	else:
+		rsolution.append(int(prevsol[5]))
+	if 6 in values_to_change:
+		rsolution.append(trunc(random.uniform(0,0.1),6)) #min-feature-displacement
+	else:
+		rsolution.append(prevsol[6])
+	if 7 in values_to_change:
+		rsolution.append(trunc(random.uniform(1.000001,3),6)) #acceleration-bound
+	else:
+		rsolution.append(prevsol[7])
+	if 8 in values_to_change:
+		rsolution.append(trunc(random.uniform(0,1),6)) #deviation-bound
+	else:
+		rsolution.append(prevsol[8])
+	if 9 in values_to_change:
+		rsolution.append(trunc(random.randint(0,100),6)) #smoothing-halfwidth
+	else:
+		rsolution.append(prevsol[9])
+	if 10 in values_to_change:
+		rsolution.append(5) #n-frames-velocity, not used for feature tracking
+	else:
+		rsolution.append(int(prevsol[10]))
+	if 11 in values_to_change:
+		rsolution.append(trunc(random.uniform(0.01,0.3),6)) #min-tracking-error
+	else:
+		rsolution.append(prevsol[11])
+	if 12 in values_to_change:
+		rsolution.append(0.0001) #min-eig-value, MAY NEED CHANGE
+	else:
+		rsolution.append(prevsol[12])
+	if 13 in values_to_change:
+		rsolution.append(random.randint(5,25)) #min-feature-time
+	else:
+		rsolution.append(int(prevsol[13]))
+	if 14 in values_to_change:
+		rsolution.append(trunc(random.uniform(0.5,2),6)) #mm-connection-distance
+	else:
+		rsolution.append(prevsol[14])
+	if 15 in values_to_change:
+		mmsd = 5000
+		while mmsd >= float(rsolution[-1]):
+			mmsd = random.uniform(0.1,1.9)
+		rsolution.append(trunc(mmsd,6))
+	else:
+		rsolution.append(prevsol[15])
+	if 16 in values_to_change:
+		rsolution.append(trunc(random.uniform(0,5),6)) #max-distance, apparently unused
+	else:
+		rsolution.append(prevsol[16])
+	if 17 in values_to_change:
+		rsolution.append(trunc(random.uniform(0,1),6)) #min-velocity-cosine, apparently unused
+	else:
+		rsolution.append(prevsol[17])
+	if 18 in values_to_change:
+		rsolution.append(trunc(random.uniform(1,4),6)) #min-features-group
+	else:
+		rsolution.append(prevsol[18])
+
+	if boolelev == 1:
+		elevout = []
+		if 19 in values_to_change:
+			elevout.append(random.uniform(0.5,1.5))
+		else:
+			elevout.append(prevelev[0])
+		if 20 in values_to_change:
+			elevout.append(random.uniform(0.5,1.5))
+		else:
+			elevout.append(prevelev[1])
+		if 21 in values_to_change:
+			elevout.append(random.uniform(0.5,1.5))
+		else:
+			elevout.append(prevelev[2])
+		if 22 in values_to_change:
+			elevout.append(random.uniform(0.5,1.5))
+		else:
+			elevout.append(prevelev[3])
+	else:
+		elevout = [1.2,1.2,1.2,1.2]
+
+	return rsolution, elevout
+
+#Matches traces to ground-truth and calculates MOTP+MOTA
+def matchmaking(object_positions,gt_filename,T):
+	#Matches Oi to Hi
+	conn = sqlite3.connect(gt_filename)
+	gt_positionsx = conn.execute('SELECT * FROM positions')
+
+	max_frame = 0
+	n_gt_objects = 0
+	n_obj = 0
+
+	#Add boolean IsConnected to gt_positions
+	gt_positions = []
+	for g in gt_positionsx:
+		gt_positions.append(g)
+
+	#Compute number of objects and frames in ground truth
+	for g in gt_positions:
+		if g[0] > n_gt_objects:
+			n_gt_objects = g[0]
+		if g[1] > max_frame:
+			max_frame = g[1]
+
+	for op in object_positions:
+		if op[0] > n_obj:
+			n_obj = op[0]
+
+	#Sort into easier tables
+	sorted_gt_positions = [0]*(n_gt_objects+1)
+	sorted_obj_positions = [0]*(n_obj+1)
+	for x in range(0,n_gt_objects+1):
+		sorted_gt_positions[x] = [[0,0],[0,0]]
+	for x in range(0,n_obj+1):
+		sorted_obj_positions[x] = [[0,0],[0,0]]
+	for g in gt_positions:
+		sorted_gt_positions[g[0]].append(g)
+	for s in object_positions:
+		sorted_obj_positions[s[0]].append(s)
+	#Dirty array fixing
+	for sgt in sorted_gt_positions:
+		del sgt[0]
+		sgt[0] = [sgt[1][1],sgt[-1][1]]
+	for sop in sorted_obj_positions:
+		del sop[0]
+		if len(sop) >= 2:
+			sop[0] = [sop[1][1],sop[-1][1]]
+		else:
+			return 0, 0
+
+	match_table = []
+	frame = 0
+
+	#Make matches and calculate distance
+	while frame <= max_frame:
+		for sgt in sorted_gt_positions:
+			if frame >= sgt[0][0] and frame <= sgt[0][1]:
+				for gt in sgt:
+					if gt[1] == frame:
+						best_dist = [frame,sgt[1][0],-1,float('inf')]
+						for sop in sorted_obj_positions:
+							if frame >= sop[0][0] and frame <= sop[0][1]:
+								for s in sop:
+									if len(s) == 2 or len(gt) == 2:
+										continue
+									elif s[1] == frame:
+										delta = math.sqrt(math.pow((s[2] - gt[2]),2) + math.pow((s[3] - gt[3]),2))
+										if delta >= T:
+											continue
+										else:
+											if delta < best_dist[3]:
+												best_dist = [frame,gt[0],s[0],delta]
+											break
+						match_table.append(best_dist)
+						break
+		frame += 1
+
+	#Calculate MOTP
+	dit = 0
+	ct = 0
+	mt = 0
+	for mtab in match_table:
+		if mtab[2] != -1:
+			dit += float(mtab[3])/T
+			ct += 1
+		else:
+			mt += 1
+	if ct != 0:
+		motp = 1 - (dit/ct)
+	else:
+		return 0, 0
+
+	#Calculate MOTA
+	gt = 0
+	for sgt in sorted_gt_positions:
+		gt += (len(sgt)-1)
+
+	total_traces = len(object_positions)
+
+	fpt = total_traces - ct
+
+	gtobj = 0
+	mme = -1 - n_gt_objects
+	while gtobj <= n_gt_objects:
+		prev = [0,0,-1,0]
+		for mtab in match_table:
+			if mtab[1] == gtobj:
+				if mtab[2] != prev[2]:
+					mme += 1
+				prev = mtab
+		gtobj += 1
+
+	mota = 1-(float(mt+fpt+mme)/gt)
+
+	print 'MOTP: ' + str(motp)
+	print 'MOTA: ' + str(mota)
+	return motp, mota
+
+#Extracts trajectories from the sqlite file	
+def extract_trajectories(sqlite_filename):
+	import storage
+
+	objects = storage.loadTrajectoriesFromSqlite(sqlite_filename,'object')
+	object_positions = []
+	a = 0
+	for o in objects:
+		instant = o.timeInterval[0]
+		for p in o.positions:
+			object_positions.append([a,instant,p.x,p.y])
+			instant += 1
+		a += 1
+
+	return object_positions
+
+#Writes the cfg file for current parameters
+def config_mod(param_array, vidfilename,datafilename,homofilename,maskfilename,tracker_filename):
+	cfg = open(tracker_filename, 'w')
 	cfg.write('# Automatically generated configuration file for Traffic Intelligence\n')
 	cfg.write('video-filename = ')
 	cfg.write(vidfilename)
@@ -24,7 +350,7 @@ def config_mod(param_array, vidfilename,datafilename,homofilename,maskfilename):
 	cfg.write(str(param_array[3]))
 	cfg.write('\npyramid-level = ')
 	cfg.write(str(param_array[4]))
-	cfg.write('\nndisplacement = ')
+	cfg.write('\nndisplacements = ')
 	cfg.write(str(param_array[5]))
 	cfg.write('\nmin-feature-displacement = ')
 	cfg.write(str(param_array[6]))
@@ -50,26 +376,38 @@ def config_mod(param_array, vidfilename,datafilename,homofilename,maskfilename):
 	cfg.write(str(param_array[16]))
 	cfg.write('\nmin-velocity-cosine = ')
 	cfg.write(str(param_array[17]))
-	cfg.write('\nmin-features-group = ')
+	cfg.write('\nmin-nfeatures-group = ')
 	cfg.write(str(param_array[18]))
 	cfg.write('\nmax-predicted-speed = 50\nprediction-time-horizon = 5\ncollision-distance = 1.8\n')
 	cfg.write('crossing-zones = false\nprediction-method = na\nnpredicted-trajectories = 10\nmin-acceleration = -9.1\n')
-	cfg.write('max-acceleration = 2\nmax-steering = 0.5\nuse-features-prediction = true')
+	cfg.write('max-acceleration = 2\nmax-steering = 0.5\nuse-features-prediction = true\nmax-normal-acceleration = 2\nmax-normal-steering = 2\nmin-extreme-acceleration = 2\nmax-extreme-acceleration = 3\nmax-extreme-steering = 3')
 
-def point_corresp_mod(pointcorr_name,current_elevation):
+#Calculates homography for the current elevation
+def point_corresp_mod(pointcorr_name,current_elevation,homo_filename):
+	print 'Calculating homography matrix for current elevation...'
+	elevprop = []
+	for ce in current_elevation:
+		elevprop.append(float(ce)/1.5)
+
 	pct = open(pointcorr_name,'r')
-	pclines = pct.readlines()
+	fullextract = pct.readlines()
+	pclines = fullextract[-6::]
 	video_lines = []
 
 	worldPts = []
 	temp_holder = []
 
+	#Extract latest point correspondences
 	for j in range(0,2):
 		temp_holder.append(pclines[j].split())
 
+	#Extract world points
 	for k in range(0,4):
 		worldPts.append([float(temp_holder[0][k]),float(temp_holder[1][k])])
 
+	worldPts2 = np.float32(worldPts)
+	
+	#Prepare video point arrays
 	for x in range(2,6):
 		video_lines.append(pclines[x].split())
 		for y in range(0,4):
@@ -78,7 +416,7 @@ def point_corresp_mod(pointcorr_name,current_elevation):
 	point_arrays = []
 	#each point:
 	# [[X0, Y0]
-	#  [X1, Y1]]
+	# [X1, Y1]]
 	for a in range (0,4):
 		point_arrays.append([[float(video_lines[0][a][0])*(10**float(video_lines[0][a][1])),
 			float(video_lines[1][a][0])*(10**float(video_lines[1][a][1]))],
@@ -86,19 +424,154 @@ def point_corresp_mod(pointcorr_name,current_elevation):
 			float(video_lines[3][a][0])*(10**float(video_lines[3][a][1]))]])
 
 	curr_videoPts = []
-
 	for i in range (0,4):
 		delta_x = point_arrays[i][1][0] - point_arrays[i][0][0]
 		delta_y = point_arrays[i][1][1] - point_arrays[i][0][1]
-		curr_videoPts.append([point_arrays[i][0][0] + (delta_x * current_elevation[i]),point_arrays[i][0][1] + (delta_y * current_elevation[i])])
+		curr_videoPts.append([point_arrays[i][0][0] + (delta_x * elevprop[i]),point_arrays[i][0][1] + (delta_y * elevprop[i])])
 
-	homography, mask = cv2.findHomography(np.array(curr_videoPts), np.array(worldPts))
+	curr_videoPts2 = np.float32(curr_videoPts)
+	
+	homography, mask = cv2.findHomography(np.array(curr_videoPts2), np.array(worldPts2))
+	np.savetxt(homo_filename,homography)
 
-	np.savetxt('homography-mod.txt',homography)
+def run_TI(configfile):
+	print 'Running TrafficIntelligence'
+	tfrun = 'feature-based-tracking ' + configfile + ' --tf'
+	gfrun = 'feature-based-tracking ' + configfile + ' --gf'
+	subprocess.check_call(tfrun, shell=True)
+	print 'Feature traces extracted.'
+	subprocess.check_call(gfrun, shell=True)
+	print 'Features grouped.'
+
+#Initialize csv file if none exists
+if os.path.isfile(storage_filename):
+	print 'Previous results found - continuing.'
+	if include_homo_altitude_mod == 1:
+		prevelev = []
+		if use_previous_point_correspondence == 0:
+			pc_run = 'python inputPointCorrespondence.py -i ' + videoframefile + ' -w ' + worldfile + ' -u ' + str(metersperpixel)
+			subprocess.check_call(pc_run, shell=True)
+			prevelev = [1.2,1.2,1.2,1.2]
+		else:
+			elevreader2 = []
+			with open(storage_filename, 'rb') as storagefile:
+				elevreader = csv.reader(storagefile, delimiter=' ')
+				for row in elevreader:
+					elevreader2.append(row)
+				elevreader3 = elevreader2[-1][0].split(', ')
+				
+				prevelev = elevreader2[-1][0][20:24]
+				
+		point_corresp_mod(point_corr_filename,prevelev,homo_filename)
+else:
+	print 'Initializing with default parameters.'
+	current_config = [0.01,3,6,0.2,5,3,0.05,3,0.6,5,5,0.3,0.0001,20,3.75,1.5,5,0.8,3]
+	config_mod(current_config,video_filename,sqlite_filename,homo_filename,mask_filename,config_filename)
+	if os.path.isfile(sqlite_filename):
+		removal = 'rm ' + sqlite_filename
+		subprocess.check_call(removal, shell=True)
+	run_TI(config_filename)
+	current_traces = extract_trajectories(sqlite_filename)
+	motp,mota = matchmaking(current_traces,ground_truth_sqlite,max_match_dist)
+
+	with open(storage_filename, 'wb') as storagefile:
+		csvfiller = csv.writer(storagefile, delimiter=' ')
+		uid = []
+		for cc in current_config:
+			uid.append(str(cc))
+		prevelev = [1.2,1.2,1.2,1.2]
+		firstrow = [0] + current_config + prevelev + [motp,mota,uid,0]
+		csvfiller.writerow(firstrow)
+	print 'Initial solution found. Beginning simulated annealing...'
+
+#Initialize homography, if elevation is variable (otherwise should be done manually)
+prevelev = []
+if include_homo_altitude_mod == 1:
+	prevelev = []
+	if use_previous_point_correspondence == 0:
+		pc_run = 'python inputPointCorrespondence.py -i ' + videoframefile + ' -w ' + worldfile + ' -u ' + str(metersperpixel)
+		subprocess.check_call(pc_run, shell=True)
+		prevelev = [1.2,1.2,1.2,1.2]
+	else:
+		elevreader2 = []
+		with open(storage_filename, 'rb') as storagefile:
+			elevreader = csv.reader(storagefile, delimiter=' ')
+			for row in elevreader:
+				elevreader2.append(row)
+			prevelev = elevreader2[-1][20:24]
+	point_corresp_mod(point_corr_filename,prevelev,homo_filename)
+else:
+	currelev = [1.2,1.2,1.2,1.2]
+
+	#Initial solution
+
+#In-app array of csv solutions
+solutions = []
+with open(storage_filename, 'rb') as storagefile:
+	csvreader = csv.reader(storagefile, delimiter=' ')
+	for row in csvreader:
+		solutions.append(row)
+
+#Extract last solution
+prevsol = solutions[(int(solutions[-1][-1]))][1:20]
+
+i = int(solutions[-1][0])+1
+e = weight_mota*(float(solutions[-1][-3])) + weight_motp*float(solutions[-1][-4])
+print 'Current energy:'
+print e
+ebest = weight_mota*float(solutions[int(solutions[-1][-1])][-3]) + weight_motp*float(solutions[int(solutions[-1][-1])][-4])
+currbest = solutions[-1][-1]
+
+while i < max_iterations:
+	print 'iteration : ' + str(i)
+	if os.path.isfile(sqlite_filename):
+		removal = 'rm ' + sqlite_filename
+		subprocess.check_call(removal, shell=True)
+	t = t_init - (lamda * math.log(1+i))
+	print 'Temperature : ' + str(t)
+	currsol, currelev = neighbor_solution(t,t_init,include_homo_altitude_mod,prevsol,prevelev,grouping_mod)
+	print 'Current parameters :' + str(currsol)
+	print 'Current elevations :' + str(currelev)
+	uid = ''
+	for cs in currsol:
+		uid += str(cs)
+	point_corresp_mod(point_corr_filename,currelev,homo_filename)
+	config_mod(currsol,video_filename,sqlite_filename,homo_filename,mask_filename,config_filename)
+	run_TI(config_filename)
+	current_traces = extract_trajectories(sqlite_filename)
+	motp,mota = matchmaking(current_traces,ground_truth_sqlite,max_match_dist)
+	
+	enew = weight_mota*float(mota) + weight_motp*motp
+	print 'New energy : '
+	print enew
+	if enew > ebest:
+		currbest = i
+		ebest = enew
+#	initprob = math.exp(0-(t*enew)) / math.exp(0-(t*enew))
+#	if initprob > 1:
+#		initprob = 1
+#	probcompare = random.uniform(0,1)
+#	if initprob > probcompare:
+		prevsol = currsol
+		saved_best_name = sqlite_filename[0:6]+'best.sqlite'
+		if os.path.isfile(saved_best_name):
+			remove_command = 'rm ' + saved_best_name
+			subprocess.check_call(remove_command, shell=True)
+		move_command = 'mv ' + sqlite_filename + ' ' + saved_best_name
+		subprocess.check_call(move_command, shell=True)
+	solutions.append([i]+currsol+currelev+[motp,mota,uid,currbest])
+	if os.path.isfile(storage_filename):
+		removal = 'rm ' + storage_filename
+		subprocess.check_call(removal, shell=True)
+		with open(storage_filename, 'wb') as storagefile:
+			csvfiller = csv.writer(storagefile, delimiter=' ')
+			for sol in solutions:
+				csvfiller.writerow(sol)
+	i+=1
 
 
-
-
+#test_insert = extract_trajectories('calib.sqlite')
+#print matchmaking(test_insert,'Ground Truth v1.sqlite',1.5)
 
 #Array contents
 #	0 - feature-quality
@@ -122,14 +595,14 @@ def point_corresp_mod(pointcorr_name,current_elevation):
 #	18 - min-features-group
 
 #Variables for testing
-curr_parameters = [0.01,3,6,0.2,5,3,0.05,3,0.6,5,5,0.3,0.0001,20,3.75,1.5,5,0.8,3]
-video_filename = 'GP010010.MP4'
-database_filename = 'Test1.sqlite'
-homography_filename = 'TestCaseHomo.txt'
-mask_filename = 'mask1.png'
-current_elevation = [0.5,0.5,0.5,0.5]
+#curr_parameters = [0.01,3,6,0.2,5,3,0.05,3,0.6,5,5,0.3,0.0001,20,3.75,1.5,5,0.8,3]
+#video_filename = 'GP010010.MP4'
+#database_filename = 'Test1.sqlite'
+#homography_filename = 'TestCaseHomo.txt'
+#mask_filename = 'mask1.png'
+#current_elevation = [0.5,0.5,0.5,0.5]
 
-ext_point_corr_filename = 'ext-point-correspondence.txt'
+#ext_point_corr_filename = 'ext-point-correspondence.txt'
 
-config_mod(curr_parameters,video_filename,database_filename,homography_filename,mask_filename)
-point_corresp_mod(ext_point_corr_filename, current_elevation)
+#config_mod(curr_parameters,video_filename,database_filename,homography_filename,mask_filename)
+#point_corresp_mod(ext_point_corr_filename, current_elevation)
