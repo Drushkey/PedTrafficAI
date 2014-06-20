@@ -109,12 +109,12 @@ def neighbor_solution(temp,t_init,boolelev,prevsol,prevelev, gmod):
 
 	rsolution = []
 	if 0 in values_to_change:
-		signer = random.uniform(0,1)
-		if signer < 0.5:
+		signa = random.uniform(0,1)
+		if signa < 0.5:
 			sign = 0.5
 		else:
 			sign = 2
-		new0 = prevsol[0]*sign
+		new0 = float(prevsol[0])*sign
 		if new0 > 1:
 			new0 = 1
 		rsolution.append(trunc(new0,6)) #feature-quality
@@ -123,7 +123,7 @@ def neighbor_solution(temp,t_init,boolelev,prevsol,prevelev, gmod):
 	else:
 		rsolution.append(prevsol[0])
 	if 1 in values_to_change:
-		new1 = prevsol[1] + signer()*random.uniform(0,0.1)
+		new1 = float(prevsol[1]) + signer()*random.uniform(0,0.1)
 		if new1 < 0:
 			new1 = 0
 		elif new > 10:
@@ -133,7 +133,7 @@ def neighbor_solution(temp,t_init,boolelev,prevsol,prevelev, gmod):
 	else:
 		rsolution.append(prevsol[1])
 	if 2 in values_to_change:
-		new2 = prevsol[2] + signer()*random.uniform(0,1)
+		new2 = float(prevsol[2]) + signer()*random.uniform(0,1)
 		if new2 < 3:
 			new2 = 3
 		elif new2 > 10:
@@ -147,7 +147,7 @@ def neighbor_solution(temp,t_init,boolelev,prevsol,prevelev, gmod):
 	else:
 		rsolution.append(prevsol[3])
 	if 4 in values_to_change:
-		new4 = prevsol[4] + signer()
+		new4 = int(prevsol[4]) + signer()
 		if new4 < 1:
 			new4 = 2
 		elif new4 > 5:
@@ -157,7 +157,7 @@ def neighbor_solution(temp,t_init,boolelev,prevsol,prevelev, gmod):
 	else:
 		rsolution.append(int(prevsol[4]))
 	if 5 in values_to_change:
-		new5 = prevsol[5] + signer()
+		new5 = int(prevsol[5]) + signer()
 		if new5 < 2:
 			new5 = 3
 		elif new5 > 4:
@@ -167,7 +167,7 @@ def neighbor_solution(temp,t_init,boolelev,prevsol,prevelev, gmod):
 	else:
 		rsolution.append(int(prevsol[5]))
 	if 6 in values_to_change:
-		new6 = prevsol[6] + signer()*random.uniform(0,0.01)
+		new6 = float(prevsol[6]) + signer()*random.uniform(0,0.01)
 		if new6 < 0:
 			new6 = 0
 		elif new6 > 1:
@@ -177,7 +177,7 @@ def neighbor_solution(temp,t_init,boolelev,prevsol,prevelev, gmod):
 	else:
 		rsolution.append(prevsol[6])
 	if 7 in values_to_change:
-		new7 = prevsol[7] + signer()*random.uniform(0,0.1)
+		new7 = float(prevsol[7]) + signer()*random.uniform(0,0.1)
 		if new7 < 1:
 			new7 = 1
 		elif new7 > 3:
@@ -187,7 +187,7 @@ def neighbor_solution(temp,t_init,boolelev,prevsol,prevelev, gmod):
 	else:
 		rsolution.append(prevsol[7])
 	if 8 in values_to_change:
-		new8 = prevsol[8] + signer()*random.uniform(0,0.05)
+		new8 = float(prevsol[8]) + signer()*random.uniform(0,0.05)
 		if new8 < 0:
 			new8 = 0
 		elif new8 > 1:
@@ -197,7 +197,7 @@ def neighbor_solution(temp,t_init,boolelev,prevsol,prevelev, gmod):
 	else:
 		rsolution.append(prevsol[8])
 	if 9 in values_to_change:
-		new9 = prevsol[9] + signer()
+		new9 = int(prevsol[9]) + signer()
 		if new9 < 0:
 			new9 = 1
 		elif new9 > 11:
@@ -207,7 +207,7 @@ def neighbor_solution(temp,t_init,boolelev,prevsol,prevelev, gmod):
 	else:
 		rsolution.append(prevsol[9])
 	if 10 in values_to_change:
-		new10 = prevsol[10] + signer()
+		new10 = int(prevsol[10]) + signer()
 		if new10 < 1:
 			new10 = 2
 		rsolution.append(new10) #n-frames-velocity, not used for feature tracking
@@ -215,12 +215,12 @@ def neighbor_solution(temp,t_init,boolelev,prevsol,prevelev, gmod):
 	else:
 		rsolution.append(int(prevsol[10]))
 	if 11 in values_to_change:
-		new11 = prevsol[11] + signer()*random.uniform(0,0.01)
+		new11 = float(prevsol[11]) + signer()*random.uniform(0,0.01)
 		if new11 < 0.01:
 			new11 = 0.01
 		elif new11 > 0.3:
 			new11 = 0.3
-		rsolution.append(trunc(new11(0.01,0.3),6)) #min-tracking-error
+		rsolution.append(trunc(new11,6)) #min-tracking-error
 		changeprinter('min-tracking-error',prevsol[11],new11)
 	else:
 		rsolution.append(prevsol[11])
@@ -229,7 +229,7 @@ def neighbor_solution(temp,t_init,boolelev,prevsol,prevelev, gmod):
 	else:
 		rsolution.append(prevsol[12])
 	if 13 in values_to_change:
-		new13 = prevsol[13] + signer()
+		new13 = int(prevsol[13]) + signer()
 		if new13 < 5:
 			new13 = 6
 		elif new13 > 25:
@@ -239,7 +239,7 @@ def neighbor_solution(temp,t_init,boolelev,prevsol,prevelev, gmod):
 	else:
 		rsolution.append(int(prevsol[13]))
 	if 14 in values_to_change:
-		new14 = prevsol[14] + signer()*random.uniform(0,0.2)
+		new14 = float(prevsol[14]) + signer()*random.uniform(0,0.2)
 		if new14 < 0.5:
 			new14 = 0.5
 		elif new14 > 4:
@@ -251,7 +251,7 @@ def neighbor_solution(temp,t_init,boolelev,prevsol,prevelev, gmod):
 	if 15 in values_to_change:
 		mmsd = 5000
 		while mmsd >= float(rsolution[-1]):
-			mmsd = prevsol[15] + signer()*random.uniform(0,0.1)
+			mmsd = float(prevsol[15]) + signer()*random.uniform(0,0.1)
 		if mmsd < 0.1:
 			mmsd = 0.1
 		rsolution.append(trunc(mmsd,6))
@@ -259,7 +259,7 @@ def neighbor_solution(temp,t_init,boolelev,prevsol,prevelev, gmod):
 	else:
 		rsolution.append(prevsol[15])
 	if 16 in values_to_change:
-		new16 = prevsol[16] + signer()*random.uniform(0,0.1)
+		new16 = float(prevsol[16]) + signer()*random.uniform(0,0.1)
 		if new16 < 0:
 			new16 = 0
 		elif new16 > 5:
@@ -274,7 +274,7 @@ def neighbor_solution(temp,t_init,boolelev,prevsol,prevelev, gmod):
 	else:
 		rsolution.append(prevsol[17])
 	if 18 in values_to_change:
-		new18 = prevsol[18] + signer()*random.uniform(0,0.1)
+		new18 = float(prevsol[18]) + signer()*random.uniform(0,0.1)
 		if new18 < 1:
 			new18 = 1
 		elif new18 > 4:
@@ -287,7 +287,7 @@ def neighbor_solution(temp,t_init,boolelev,prevsol,prevelev, gmod):
 	if boolelev == 1:
 		elevout = []
 		if 19 in values_to_change:
-			el0 = prevelev[0] + signer()*random.uniform(0,0.1)
+			el0 = float(prevelev[0]) + signer()*random.uniform(0,0.1)
 			if el0 < 0.5:
 				el0 = 0.5
 			elif el0 > 1.5:
@@ -297,7 +297,7 @@ def neighbor_solution(temp,t_init,boolelev,prevsol,prevelev, gmod):
 		else:
 			elevout.append(prevelev[0])
 		if 20 in values_to_change:
-			el1 = prevelev[1] + signer()*random.uniform(0,0.1)
+			el1 = float(prevelev[1]) + signer()*random.uniform(0,0.1)
 			if el1 < 0.5:
 				el1 = 0.5
 			elif el1 > 1.5:
@@ -307,7 +307,7 @@ def neighbor_solution(temp,t_init,boolelev,prevsol,prevelev, gmod):
 		else:
 			elevout.append(prevelev[1])
 		if 21 in values_to_change:
-			el2 = prevelev[2] + signer()*random.uniform(0,0.1)
+			el2 = float(prevelev[2]) + signer()*random.uniform(0,0.1)
 			if el2 < 0.5:
 				el2 = 0.5
 			elif el2 > 1.5:
@@ -317,7 +317,7 @@ def neighbor_solution(temp,t_init,boolelev,prevsol,prevelev, gmod):
 		else:
 			elevout.append(prevelev[2])
 		if 22 in values_to_change:
-			el3 = prevelev[3] + signer()*random.uniform(0,0.1)
+			el3 = float(prevelev[3]) + signer()*random.uniform(0,0.1)
 			if el3 < 0.5:
 				el3 = 0.5
 			elif el3 > 1.5:
@@ -594,9 +594,8 @@ if os.path.isfile(storage_filename):
 				elevreader = csv.reader(storagefile, delimiter=' ')
 				for row in elevreader:
 					elevreader2.append(row)
-				elevreader3 = elevreader2[-1][0].split(', ')
-				
-				prevelev = elevreader2[-1][0][20:24]
+				for x in range(20,24):
+					prevelev.append(float(elevreader2[-1][x]))
 				
 		point_corresp_mod(point_corr_filename,prevelev,homo_filename)
 else:
