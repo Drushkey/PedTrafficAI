@@ -9,19 +9,19 @@ import subprocess
 import random
 
 #Settings
-include_homo_altitude_mod = 0
+include_homo_altitude_mod = 1
 grouping_mod = 0 #Modify only grouping parameters
 use_previous_point_correspondence = 1
-weight_mota = 1
-weight_motp = 1 - weight_mota
-max_iterations = 800
+weight_mota = 1 
+weight_motp = 1 - weight_mota #Do not change!
+max_iterations = 1200
 
 #Project-specific parameters
 metersperpixel = '0.016533'
 worldfile = 'Floorplan_poly.png'
 videoframefile = 'calib_snapshot.png'
 point_corr_filename = 'ext-point-correspondence.txt'
-storage_filename = 'storage.csv'
+storage_filename = 'storage_attempt2.csv'
 video_filename = 'calib_0.mp4'
 sqlite_filename = 'PedTAI_testrun.sqlite'
 homo_filename = 'homography.txt'
@@ -32,9 +32,8 @@ ground_truth_sqlite = 'Ground Truth v1.sqlite'
 #Optimization parameters
 t_init = 20
 max_match_dist = 0.8 #maximum distance for matching in meters
-lamda = 0.01
+lamda = 2.4113
 emax = -100 #Threshold solution to consider optimization complete
-imax = 100 #maximum number of iterations
 
 #this is probably garbage
 def simanneal(MOTA,MOTP,tracker_name):
@@ -53,18 +52,32 @@ def trunc(f,n):
 	slen = len('%.*f' % (n,f))
 	return str(f)[:slen]
 
+def signer():
+	#Randomly selects between 1 and -1
+	signer = random.uniform(0,1)
+	if signer < 0.5:
+		return -1
+	else:
+		return 1
+
+def changeprinter(param,first,second):
+	#Prints changes when they occur
+	#thing to print = TTP
+	if first == second:
+		ttp = param + ' unchanged'
+	else:
+		ttp = param
+		ttp += ' changed from ' + str(first) + ' to ' + str(second)
+		print ttp
+
 #Finds neighbor solutions; modifies a number of parameters proportional to the current temperature
 def neighbor_solution(temp,t_init,boolelev,prevsol,prevelev, gmod):
-	import random
 	print 'Generating random neighbor solution...'
 	potential_changes = 19
 	if boolelev == 1:
 		potential_changes = 23
 
-	if gmod == 1:
-		potential_changes = 5
-
-	n_changes = min(1,int((temp/(2*t_init))*potential_changes))
+	n_changes = random.randint(1,3)
 	u = 0
 	values_to_change = []
 	print 'Number of changes to config file: ' + str(n_changes)
@@ -84,7 +97,10 @@ def neighbor_solution(temp,t_init,boolelev,prevsol,prevelev, gmod):
 			success = 0
 			while success == 0:
 				add = random.randint(14,potential_changes)
-				if add in values_to_change:
+				if add in values_to_change or add == 3 or add == 16 or add == 17:
+					pass
+				#control for parameters to optimize later
+				elif add == 4 or add == 9 or add == 11 or add == 12:
 					pass
 				else:
 					values_to_change.append(add)
@@ -93,51 +109,119 @@ def neighbor_solution(temp,t_init,boolelev,prevsol,prevelev, gmod):
 
 	rsolution = []
 	if 0 in values_to_change:
-		rsolution.append(trunc(random.uniform(0,1),6)) #feature-quality
+		signer = random.uniform(0,1)
+		if signer < 0.5:
+			sign = 0.5
+		else:
+			sign = 2
+		new0 = prevsol[0]*sign
+		if new0 > 1:
+			new0 = 1
+		rsolution.append(trunc(new0,6)) #feature-quality
+		#Divides or multiples old value by 2
+		changeprinter('feature-quality',prevsol[0],new0)
 	else:
 		rsolution.append(prevsol[0])
 	if 1 in values_to_change:
-		rsolution.append(trunc(random.uniform(0,10),6)) #min-feature-distanceklt, assumes max distance of 1 meter between features, probably excessive
+		new1 = prevsol[1] + signer()*random.uniform(0,0.1)
+		if new1 < 0:
+			new1 = 0
+		elif new > 10:
+			new1 = 10
+		rsolution.append(trunc(new1,6)) #min-feature-distanceklt, assumes max distance of 1 meter between features, probably excessive
+		changeprinter('min-feature-distanceklt',prevsol[1],new1)
 	else:
 		rsolution.append(prevsol[1])
 	if 2 in values_to_change:
-		rsolution.append(random.randint(3,10)) #window-size
+		new2 = prevsol[2] + signer()*random.uniform(0,1)
+		if new2 < 3:
+			new2 = 3
+		elif new2 > 10:
+			new2 = 10
+		rsolution.append(trunc(new2,6)) #window-size
+		changeprinter('window-size',prevsol[2],new2)
 	else:
 		rsolution.append(int(prevsol[2]))
-	if 3 in values_to_change:
+	if 3 in values_to_change: #Currently impossible
 		rsolution.append(trunc(random.uniform(0,1),6)) #k-param
 	else:
 		rsolution.append(prevsol[3])
 	if 4 in values_to_change:
-		rsolution.append(random.randint(1,5)) #pyramid-level
+		new4 = prevsol[4] + signer()
+		if new4 < 1:
+			new4 = 2
+		elif new4 > 5:
+			new4 = 4
+		rsolution.append(new4) #pyramid-level
+		print 'pyramid-level changed from ' + str(prevsol[4]) + ' to ' + str(new4)
 	else:
 		rsolution.append(int(prevsol[4]))
 	if 5 in values_to_change:
-		rsolution.append(random.randint(2,4)) #ndisplacement
+		new5 = prevsol[5] + signer()
+		if new5 < 2:
+			new5 = 3
+		elif new5 > 4:
+			new5 = 3
+		rsolution.append(new5) #ndisplacement
+		changeprinter('ndisplacement',prevsol[5],new5)
 	else:
 		rsolution.append(int(prevsol[5]))
 	if 6 in values_to_change:
-		rsolution.append(trunc(random.uniform(0,0.1),6)) #min-feature-displacement
+		new6 = prevsol[6] + signer()*random.uniform(0,0.01)
+		if new6 < 0:
+			new6 = 0
+		elif new6 > 1:
+			new6 = 1
+		rsolution.append(trunc(new6,6)) #min-feature-displacement
+		changeprinter('min-feature-displacement',prevsol[6],new6)
 	else:
 		rsolution.append(prevsol[6])
 	if 7 in values_to_change:
-		rsolution.append(trunc(random.uniform(1.000001,3),6)) #acceleration-bound
+		new7 = prevsol[7] + signer()*random.uniform(0,0.1)
+		if new7 < 1:
+			new7 = 1
+		elif new7 > 3:
+			new7 = 3
+		rsolution.append(trunc(new7,6)) #acceleration-bound
+		changeprinter('acceleration-bound',prevsol[7],new7)
 	else:
 		rsolution.append(prevsol[7])
 	if 8 in values_to_change:
-		rsolution.append(trunc(random.uniform(0,1),6)) #deviation-bound
+		new8 = prevsol[8] + signer()*random.uniform(0,0.05)
+		if new8 < 0:
+			new8 = 0
+		elif new8 > 1:
+			new8 = 1
+		rsolution.append(trunc(new8,6)) #deviation-bound
+		changeprinter('deviation-bound',prevsol[8],new8)
 	else:
 		rsolution.append(prevsol[8])
 	if 9 in values_to_change:
-		rsolution.append(trunc(random.randint(0,100),6)) #smoothing-halfwidth
+		new9 = prevsol[9] + signer()
+		if new9 < 0:
+			new9 = 1
+		elif new9 > 11:
+			new9 = 10
+		rsolution.append(new9) #smoothing-halfwidth
+		changeprinter('smoothing-halfwidth',prevsol[9],new9)
 	else:
 		rsolution.append(prevsol[9])
 	if 10 in values_to_change:
-		rsolution.append(5) #n-frames-velocity, not used for feature tracking
+		new10 = prevsol[10] + signer()
+		if new10 < 1:
+			new10 = 2
+		rsolution.append(new10) #n-frames-velocity, not used for feature tracking
+		changeprinter('n-frames-velocity',prevsol[10],new10)
 	else:
 		rsolution.append(int(prevsol[10]))
 	if 11 in values_to_change:
-		rsolution.append(trunc(random.uniform(0.01,0.3),6)) #min-tracking-error
+		new11 = prevsol[11] + signer()*random.uniform(0,0.01)
+		if new11 < 0.01:
+			new11 = 0.01
+		elif new11 > 0.3:
+			new11 = 0.3
+		rsolution.append(trunc(new11(0.01,0.3),6)) #min-tracking-error
+		changeprinter('min-tracking-error',prevsol[11],new11)
 	else:
 		rsolution.append(prevsol[11])
 	if 12 in values_to_change:
@@ -145,49 +229,101 @@ def neighbor_solution(temp,t_init,boolelev,prevsol,prevelev, gmod):
 	else:
 		rsolution.append(prevsol[12])
 	if 13 in values_to_change:
-		rsolution.append(random.randint(5,25)) #min-feature-time
+		new13 = prevsol[13] + signer()
+		if new13 < 5:
+			new13 = 6
+		elif new13 > 25:
+			new13 = 24
+		rsolution.append(new13) #min-feature-time
+		changeprinter('min-feature-time',prevsol[13],new13)
 	else:
 		rsolution.append(int(prevsol[13]))
 	if 14 in values_to_change:
-		rsolution.append(trunc(random.uniform(0.5,2),6)) #mm-connection-distance
+		new14 = prevsol[14] + signer()*random.uniform(0,0.2)
+		if new14 < 0.5:
+			new14 = 0.5
+		elif new14 > 4:
+			new14 = 4
+		rsolution.append(trunc(new14,6)) #mm-connection-distance
+		changeprinter('mm-connection-distance',prevsol[14],new14)
 	else:
 		rsolution.append(prevsol[14])
 	if 15 in values_to_change:
 		mmsd = 5000
 		while mmsd >= float(rsolution[-1]):
-			mmsd = random.uniform(0.1,1.9)
+			mmsd = prevsol[15] + signer()*random.uniform(0,0.1)
+		if mmsd < 0.1:
+			mmsd = 0.1
 		rsolution.append(trunc(mmsd,6))
+		changeprinter('mm-segmentation-distance',prevsol[15],mmsd)
 	else:
 		rsolution.append(prevsol[15])
 	if 16 in values_to_change:
-		rsolution.append(trunc(random.uniform(0,5),6)) #max-distance, apparently unused
+		new16 = prevsol[16] + signer()*random.uniform(0,0.1)
+		if new16 < 0:
+			new16 = 0
+		elif new16 > 5:
+			new16 = 5
+		rsolution.append(trunc(new16,6)) #max-distance, apparently unused
+		changeprinter('max-distance',prevsol[16],new16)
 	else:
 		rsolution.append(prevsol[16])
 	if 17 in values_to_change:
+		#Unused
 		rsolution.append(trunc(random.uniform(0,1),6)) #min-velocity-cosine, apparently unused
 	else:
 		rsolution.append(prevsol[17])
 	if 18 in values_to_change:
-		rsolution.append(trunc(random.uniform(1,4),6)) #min-features-group
+		new18 = prevsol[18] + signer()*random.uniform(0,0.1)
+		if new18 < 1:
+			new18 = 1
+		elif new18 > 4:
+			new18 = 4
+		rsolution.append(trunc(new18,6)) #min-features-group
+		changeprinter('min-features-group',prevsol[18],new18)
 	else:
 		rsolution.append(prevsol[18])
 
 	if boolelev == 1:
 		elevout = []
 		if 19 in values_to_change:
-			elevout.append(random.uniform(0.5,1.5))
+			el0 = prevelev[0] + signer()*random.uniform(0,0.1)
+			if el0 < 0.5:
+				el0 = 0.5
+			elif el0 > 1.5:
+				el0 = 1.5
+			elevout.append(el0)
+			changeprinter('Elevation 1',prevelev[0],el0)
 		else:
 			elevout.append(prevelev[0])
 		if 20 in values_to_change:
-			elevout.append(random.uniform(0.5,1.5))
+			el1 = prevelev[1] + signer()*random.uniform(0,0.1)
+			if el1 < 0.5:
+				el1 = 0.5
+			elif el1 > 1.5:
+				el1 = 1.5
+			elevout.append(el1)
+			changeprinter('Elevation 2',prevelev[1],el1)
 		else:
 			elevout.append(prevelev[1])
 		if 21 in values_to_change:
-			elevout.append(random.uniform(0.5,1.5))
+			el2 = prevelev[2] + signer()*random.uniform(0,0.1)
+			if el2 < 0.5:
+				el2 = 0.5
+			elif el2 > 1.5:
+				el2 = 1.5
+			elevout.append(el2)
+			changeprinter('Elevation 3',prevelev[2],el2)
 		else:
 			elevout.append(prevelev[2])
 		if 22 in values_to_change:
-			elevout.append(random.uniform(0.5,1.5))
+			el3 = prevelev[3] + signer()*random.uniform(0,0.1)
+			if el3 < 0.5:
+				el3 = 0.5
+			elif el3 > 1.5:
+				el3 = 1.5
+			elevout.append(el3)
+			changeprinter('Elevation 4',prevelev[3],el3)
 		else:
 			elevout.append(prevelev[3])
 	else:
@@ -500,6 +636,7 @@ if include_homo_altitude_mod == 1:
 				elevreader2.append(row)
 			prevelev = elevreader2[-1][20:24]
 	point_corresp_mod(point_corr_filename,prevelev,homo_filename)
+	
 else:
 	currelev = [1.2,1.2,1.2,1.2]
 
@@ -547,18 +684,19 @@ while i < max_iterations:
 	if enew > ebest:
 		currbest = i
 		ebest = enew
-#	initprob = math.exp(0-(t*enew)) / math.exp(0-(t*enew))
-#	if initprob > 1:
-#		initprob = 1
-#	probcompare = random.uniform(0,1)
-#	if initprob > probcompare:
-		prevsol = currsol
 		saved_best_name = sqlite_filename[0:6]+'best.sqlite'
 		if os.path.isfile(saved_best_name):
 			remove_command = 'rm ' + saved_best_name
 			subprocess.check_call(remove_command, shell=True)
 		move_command = 'mv ' + sqlite_filename + ' ' + saved_best_name
 		subprocess.check_call(move_command, shell=True)
+	initprob = math.exp((t*enew)) / math.exp((t*enew))
+	if initprob > 1:
+		initprob = 1
+	probcompare = random.uniform(0,1)
+	if initprob > probcompare:
+		prevsol = currsol
+		
 	solutions.append([i]+currsol+currelev+[motp,mota,uid,currbest])
 	if os.path.isfile(storage_filename):
 		removal = 'rm ' + storage_filename
@@ -606,3 +744,8 @@ while i < max_iterations:
 
 #config_mod(curr_parameters,video_filename,database_filename,homography_filename,mask_filename)
 #point_corresp_mod(ext_point_corr_filename, current_elevation)
+
+#NOTES
+#Changed lamda from 1 to 0.01 (temperature reached 0 before 200 iterations)
+#Changed lamda from 0.01 to 0.1 (temperature change too slow)
+#Changed neighbor_solution to increment slowly. Capped it at 3 parameters changed per iteration.
