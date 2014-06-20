@@ -126,19 +126,19 @@ def neighbor_solution(temp,t_init,boolelev,prevsol,prevelev, gmod):
 		new1 = float(prevsol[1]) + signer()*random.uniform(0,0.1)
 		if new1 < 0:
 			new1 = 0
-		elif new > 10:
+		elif new1 > 10:
 			new1 = 10
 		rsolution.append(trunc(new1,6)) #min-feature-distanceklt, assumes max distance of 1 meter between features, probably excessive
 		changeprinter('min-feature-distanceklt',prevsol[1],new1)
 	else:
 		rsolution.append(prevsol[1])
 	if 2 in values_to_change:
-		new2 = float(prevsol[2]) + signer()*random.uniform(0,1)
+		new2 = int(prevsol[2]) + signer()
 		if new2 < 3:
-			new2 = 3
+			new2 = 4
 		elif new2 > 10:
-			new2 = 10
-		rsolution.append(trunc(new2,6)) #window-size
+			new2 = 9
+		rsolution.append(new2) #window-size
 		changeprinter('window-size',prevsol[2],new2)
 	else:
 		rsolution.append(int(prevsol[2]))
