@@ -36,6 +36,72 @@ max_match_dist = 1 #maximum distance for matching in meters
 lamda = 0.2
 emax = -100 #Threshold solution to consider optimization complete
 
+def gt_homography(gtsqlite,homofile):
+	conn = sqlite3.connect(gtsqlite)
+
+	boxes = conn.execute('SELECT * FROM bounding_boxes')
+	averaged_table = []
+
+	for row in boxes:
+		new_row = [row[0], row[1]]
+		new_row.append((row[2] + row[4])/2)
+		new_row.append((row[3] + row[5])/2)
+		averaged_table.append(new_row)
+
+	pointsToTranslate = []
+	for line in averaged_table:
+		pointsToTranslate.append([line[0],line[1],line[2],line[3]])
+
+	a = np.array(pointsToTranslate, dtype='float32')
+	a = np.array([a])
+
+	f = open(homofile,'r')
+	homoMatrix = []
+	for txtline in f.readlines():
+		temptxt = txtline[:-1].split()
+		homoMatrix.append(temptxt)
+
+	i,j = 0,0
+	hh = [[0,0,0],[0,0,0],[0,0,0]]
+	for x in homoMatrix:
+		for y in x:
+			hh[i][j] = float(y)
+			j += 1
+			if j == 3:
+				j = 0
+				i += 1
+
+	h = np.array(hh, dtype='float32')
+
+	translatedPoints = []
+	#print hh
+	for ptt in pointsToTranslate:
+		w = hh[2][0]*ptt[2] + hh[2][1]*ptt[3] + hh[2][2]
+		if w != 0:
+			x = (hh[0][0]*ptt[2] + hh[0][1]*ptt[3] + hh[0][2])/w
+			y = (hh[1][0]*ptt[2] + hh[1][1]*ptt[3] + hh[1][2])/w
+		else:
+			x = 0
+			y = 0
+		translatedPoints.append([ptt[0],ptt[1],x,y])
+
+	#translatedPoints = cv2.perspectiveTransform(a,h)
+
+	#print translatedPoints
+
+	conn.execute('''DROP TABLE positions''')
+	conn.execute('''CREATE TABLE positions
+		(object_id INTEGER,
+		frame_number INTEGER,
+		x_coord REAL,
+		y_coord REAL);''')
+
+	for r in translatedPoints:
+		conn.execute('''INSERT INTO positions (object_id, frame_number, x_coord, y_coord) VALUES (?,?,?,?);''', (int(r[0]),int(r[1]),float(r[2]),float(r[3])))
+
+	conn.commit()
+	conn.close()
+
 #this is probably garbage
 def simanneal(MOTA,MOTP,tracker_name):
 	import os.path
@@ -579,6 +645,8 @@ def point_corresp_mod(pointcorr_name,current_elevation,homo_filename):
 	homography, mask = cv2.findHomography(np.array(curr_videoPts2), np.array(worldPts2))
 	np.savetxt(homo_filename,homography)
 
+
+
 def run_TI(configfile):
 	print 'Running TrafficIntelligence'
 	tfrun = 'feature-based-tracking ' + configfile + ' --tf'
@@ -607,6 +675,7 @@ if os.path.isfile(storage_filename):
 					prevelev.append(float(elevreader2[-1][x]))
 				
 		point_corresp_mod(point_corr_filename,prevelev,homo_filename)
+		gt_homography(ground_truth_sqlite,homo_filename)
 else:
 	print 'Initializing with default parameters.'
 	current_config = [0.5,5,5,0.5,3,3,0.05,2,0.5,6,5,0.15,0.0001,15,2,1,2.5,0.5,2.5]
@@ -644,7 +713,7 @@ if include_homo_altitude_mod == 1:
 				elevreader2.append(row)
 			prevelev = elevreader2[-1][20:24]
 	point_corresp_mod(point_corr_filename,prevelev,homo_filename)
-	
+	gt_homography(ground_truth_sqlite,homo_filename)
 else:
 	currelev = [1.2,1.2,1.2,1.2]
 
@@ -682,6 +751,7 @@ while i < max_iterations:
 	for cs in currsol:
 		uid += str(cs)
 	point_corresp_mod(point_corr_filename,currelev,homo_filename)
+	gt_homography(ground_truth_sqlite,homo_filename)
 	config_mod(currsol,video_filename,sqlite_filename,homo_filename,mask_filename,config_filename)
 	run_TI(config_filename)
 	current_traces = extract_trajectories(sqlite_filename)
