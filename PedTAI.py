@@ -16,6 +16,7 @@ use_previous_point_correspondence = 1
 weight_mota = 1 
 weight_motp = 1 - weight_mota #Do not change!
 max_iterations = 3000
+relative_change = 0.25
 
 #Project-specific parameters
 metersperpixel = '0.016533'
@@ -138,13 +139,15 @@ def changeprinter(param,first,second):
 		print ttp
 
 #Finds neighbor solutions; modifies a number of parameters proportional to the current temperature
-def neighbor_solution(temp,t_init,boolelev,prevsol,prevelev, gmod):
+def neighbor_solution(temp,t_init,boolelev,prevsol,prevelev, gmod,rc):
 	print 'Generating random neighbor solution...'
 	potential_changes = 19
 	if boolelev == 1:
 		potential_changes = 23
 
-	n_changes = random.randint(1,3)
+	#fine tuning
+	#n_changes = random.randint(1,3)
+	n_changes = 1
 	u = 0
 	values_to_change = []
 	print 'Number of changes to config file: ' + str(n_changes)
@@ -176,16 +179,17 @@ def neighbor_solution(temp,t_init,boolelev,prevsol,prevelev, gmod):
 
 	rsolution = []
 	if 0 in values_to_change:
-		signa = random.uniform(0,1)
-		if signa < 0.25:
-			sign = 0.3
-		elif signa >= 0.25 and signa < 0.5:
-			sign = 0.5
-		elif signa >= 0.5 and signa < 0.75:
-			sign = 2
-		else:
-			sign = 3
-		new0 = float(prevsol[0])*sign
+		#signa = random.uniform(0,1)
+		#if signa < 0.25:
+		#	sign = 0.3
+		#elif signa >= 0.25 and signa < 0.5:
+		#	sign = 0.5
+		#elif signa >= 0.5 and signa < 0.75:
+		#	sign = 2
+		#else:
+		#	sign = 3
+		#new0 = float(prevsol[0])*sign
+		new0 = float(prevsol[0])+signer()*random.uniform(0,0.1)*rc
 		if new0 > 1:
 			new0 = 1
 		rsolution.append(trunc(new0,6)) #feature-quality
@@ -194,7 +198,7 @@ def neighbor_solution(temp,t_init,boolelev,prevsol,prevelev, gmod):
 	else:
 		rsolution.append(prevsol[0])
 	if 1 in values_to_change:
-		new1 = float(prevsol[1]) + signer()*random.uniform(0,0.4)
+		new1 = float(prevsol[1]) + signer()*random.uniform(0,0.4)*rc
 		if new1 < 0:
 			new1 = 0
 		elif new1 > 10:
@@ -238,7 +242,7 @@ def neighbor_solution(temp,t_init,boolelev,prevsol,prevelev, gmod):
 	else:
 		rsolution.append(int(prevsol[5]))
 	if 6 in values_to_change:
-		new6 = float(prevsol[6]) + signer()*random.uniform(0,0.04)
+		new6 = float(prevsol[6]) + signer()*random.uniform(0,0.04)*rc
 		if new6 < 0:
 			new6 = 0
 		elif new6 > 1:
@@ -248,7 +252,7 @@ def neighbor_solution(temp,t_init,boolelev,prevsol,prevelev, gmod):
 	else:
 		rsolution.append(prevsol[6])
 	if 7 in values_to_change:
-		new7 = float(prevsol[7]) + signer()*random.uniform(0,0.4)
+		new7 = float(prevsol[7]) + signer()*random.uniform(0,0.4)*rc
 		if new7 < 1:
 			new7 = 1
 		elif new7 > 3:
@@ -258,7 +262,7 @@ def neighbor_solution(temp,t_init,boolelev,prevsol,prevelev, gmod):
 	else:
 		rsolution.append(prevsol[7])
 	if 8 in values_to_change:
-		new8 = float(prevsol[8]) + signer()*random.uniform(0,0.2)
+		new8 = float(prevsol[8]) + signer()*random.uniform(0,0.2)*rc
 		if new8 < 0:
 			new8 = 0
 		elif new8 > 1:
@@ -286,7 +290,7 @@ def neighbor_solution(temp,t_init,boolelev,prevsol,prevelev, gmod):
 	else:
 		rsolution.append(int(prevsol[10]))
 	if 11 in values_to_change:
-		new11 = float(prevsol[11]) + signer()*random.uniform(0,0.04)
+		new11 = float(prevsol[11]) + signer()*random.uniform(0,0.04)*rc
 		if new11 < 0.01:
 			new11 = 0.01
 		elif new11 > 0.3:
@@ -310,7 +314,7 @@ def neighbor_solution(temp,t_init,boolelev,prevsol,prevelev, gmod):
 	else:
 		rsolution.append(int(prevsol[13]))
 	if 14 in values_to_change:
-		new14 = float(prevsol[14]) + signer()*random.uniform(0,0.8)
+		new14 = float(prevsol[14]) + signer()*random.uniform(0,0.8)*rc
 		if new14 < 0.5:
 			new14 = 0.5
 		elif new14 > 4:
@@ -322,7 +326,7 @@ def neighbor_solution(temp,t_init,boolelev,prevsol,prevelev, gmod):
 	if 15 in values_to_change:
 		mmsd = 5000
 		while mmsd >= float(rsolution[-1]):
-			mmsd = float(prevsol[15]) + signer()*random.uniform(0,0.4)
+			mmsd = float(prevsol[15]) + signer()*random.uniform(0,0.4)*rc
 		if mmsd < 0.1:
 			mmsd = 0.1
 		rsolution.append(trunc(mmsd,6))
@@ -330,7 +334,7 @@ def neighbor_solution(temp,t_init,boolelev,prevsol,prevelev, gmod):
 	else:
 		rsolution.append(prevsol[15])
 	if 16 in values_to_change:
-		new16 = float(prevsol[16]) + signer()*random.uniform(0,0.4)
+		new16 = float(prevsol[16]) + signer()*random.uniform(0,0.4)*rc
 		if new16 < 0:
 			new16 = 0
 		elif new16 > 5:
@@ -345,7 +349,7 @@ def neighbor_solution(temp,t_init,boolelev,prevsol,prevelev, gmod):
 	else:
 		rsolution.append(prevsol[17])
 	if 18 in values_to_change:
-		new18 = float(prevsol[18]) + signer()*random.uniform(0,0.4)
+		new18 = float(prevsol[18]) + signer()*random.uniform(0,0.4)*rc
 		if new18 < 1:
 			new18 = 1
 		elif new18 > 4:
@@ -358,7 +362,7 @@ def neighbor_solution(temp,t_init,boolelev,prevsol,prevelev, gmod):
 	if boolelev == 1:
 		elevout = []
 		if 19 in values_to_change:
-			el0 = float(prevelev[0]) + signer()*random.uniform(0,0.4)
+			el0 = float(prevelev[0]) + signer()*random.uniform(0,0.4)*rc
 			if el0 < 0.5:
 				el0 = 0.5
 			elif el0 > 1.5:
@@ -368,7 +372,7 @@ def neighbor_solution(temp,t_init,boolelev,prevsol,prevelev, gmod):
 		else:
 			elevout.append(prevelev[0])
 		if 20 in values_to_change:
-			el1 = float(prevelev[1]) + signer()*random.uniform(0,0.4)
+			el1 = float(prevelev[1]) + signer()*random.uniform(0,0.4)*rc
 			if el1 < 0.5:
 				el1 = 0.5
 			elif el1 > 1.5:
@@ -378,7 +382,7 @@ def neighbor_solution(temp,t_init,boolelev,prevsol,prevelev, gmod):
 		else:
 			elevout.append(prevelev[1])
 		if 21 in values_to_change:
-			el2 = float(prevelev[2]) + signer()*random.uniform(0,0.4)
+			el2 = float(prevelev[2]) + signer()*random.uniform(0,0.4)*rc
 			if el2 < 0.5:
 				el2 = 0.5
 			elif el2 > 1.5:
@@ -388,7 +392,7 @@ def neighbor_solution(temp,t_init,boolelev,prevsol,prevelev, gmod):
 		else:
 			elevout.append(prevelev[2])
 		if 22 in values_to_change:
-			el3 = float(prevelev[3]) + signer()*random.uniform(0,0.4)
+			el3 = float(prevelev[3]) + signer()*random.uniform(0,0.4)*rc
 			if el3 < 0.5:
 				el3 = 0.5
 			elif el3 > 1.5:
@@ -731,7 +735,7 @@ prevsol = solutions[(int(solutions[-1][-1]))][1:20]
 prevelev = solutions[(int(solutions[-1][-1]))][20:24]
 
 i = int(solutions[-1][0])+1
-e = weight_mota*(float(solutions[-1][-3])) + weight_motp*float(solutions[-1][-4])
+e = weight_mota*(float(solutions[int(solutions[-1][-1])][-3])) + weight_motp*float(solutions[int(solutions[-1][-1])][-4])
 print 'Current energy:'
 print e
 ebest = weight_mota*float(solutions[int(solutions[-1][-1])][-3]) + weight_motp*float(solutions[int(solutions[-1][-1])][-4])
@@ -744,7 +748,7 @@ while i < max_iterations:
 		subprocess.check_call(removal, shell=True)
 	t = t_init - (lamda * math.log(1+i))
 	print 'Temperature : ' + str(t)
-	currsol, currelev = neighbor_solution(t,t_init,include_homo_altitude_mod,prevsol,prevelev,grouping_mod)
+	currsol, currelev = neighbor_solution(t,t_init,include_homo_altitude_mod,prevsol,prevelev,grouping_mod,relative_change)
 	print 'Current parameters :' + str(currsol)
 	print 'Current elevations :' + str(currelev)
 	uid = ''
