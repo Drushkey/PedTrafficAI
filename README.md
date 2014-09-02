@@ -12,16 +12,16 @@ The aim of this project is to calibrate video-based trackers via simulated annea
 
 3 - If calculating homography, extract a single example frame from the video, as well as a floorplan/satellite image/other to-scale plan of the area.
 
-3 - Prepare the following three configuration files (detailed instructions for this step are below):
+4 - Prepare the following three configuration files (detailed instructions for this step are below):
 	- setup.ini
 	- staticParameters.txt
 	- variableParameters.txt
 
-4 - If using a tracker other than Traffic Intelligence, modify the extract_trajectories function in the code (TrOPed.py - see section 3 for details).
+5 - If using a tracker other than Traffic Intelligence, modify the extract_trajectories function in the code (TrOPed.py - see section 3 for details).
 
-5 - Run TroPed.py with "py TroPed.py". Optimization may take up to several days.
+6 - Run TroPed.py with "py TroPed.py". Optimization may take up to several days.
 
-6 - The resulting optimized parameters can now be used for tracking on the initial video:  simply modify the tracker's configuration file(s) accordingly.
+7 - The resulting optimized parameters can now be used for tracking on the initial video. Optimal configuration files can be generated automatically with **TrOPedFin.py**, then requiring only the video filename be modified by the user. The tracker can then be run as normal.
 
 ## 2 - Setup file instructions
 
