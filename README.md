@@ -4,22 +4,26 @@
 The aim of this project is to calibrate video-based trackers via simulated annealing for pedestrian tracking in a given video.
 
 
-##INSTRUCTION SUMMARY
+## 1 - INSTRUCTION SUMMARY
 
 1 - Prepare a short segment (~1 minute) of the video the tracker is to be applied to.
 
 2 - Extract the ground-truth. A good tool for this step is JP Jodoin's annotation app : http://www.jpjodoin.com/urbantracker/tools.html
 
-3 - If calculating homography, extract a single example frame from the video, as well as 
+3 - If calculating homography, extract a single example frame from the video, as well as a floorplan/satellite image/other to-scale plan of the area.
 
 3 - Prepare the following three configuration files (detailed instructions for this step are below):
 	- setup.ini
 	- staticParameters.txt
 	- variableParameters.txt
 
-4 - Run TroPed.py with "py TroPed.py"
+4 - If using a tracker other than Traffic Intelligence, modify the extract_trajectories function in the code (TrOPed.py - see section 3 for details).
 
-5 - The resulting optimized parameters can now be used for tracking on the initial video - simply modify the tracker's configuration file(s) accordingly.
+5 - Run TroPed.py with "py TroPed.py". Optimization may take up to several days.
+
+6 - The resulting optimized parameters can now be used for tracking on the initial video:  simply modify the tracker's configuration file(s) accordingly.
+
+## 2 - Setup file instructions
 
 ###setup.ini parameters
 
@@ -31,9 +35,7 @@ This file defines the parameters of the optimization process.
 
 **config0-config4**: Names or filepaths of the configuration files [string]
 
-[HomographyOptions]
-
-*Settings for the treatment/use of homography. If no_homography is set to 1, the other settings can be ignored*
+[HomographyOptions] *Settings for the treatment/use of homography. If no_homography is set to 1, the other settings can be ignored*
 
 **no_homography**: Whether to not compute a homography matrix or apply homography to the ground truth [1/0]
 
@@ -53,9 +55,8 @@ This file defines the parameters of the optimization process.
 
 **worldfile**: Filename/path of the world image - either a floorplan, satellite image, or other to-scale representation of the area in the video - for point correspondence.
 
-[RunSettings]
+[RunSettings] *Settings related to running the tracker from within the optimization*
 
-*Settings related to running the tracker from within the optimization*
 **nrunlines**: Number of command-line commands required to run the tracker in its entirety [1-4]
 
 **runline0-runline3**: Command-lines to run the tracker or parts thereof, in order [string]
@@ -117,3 +118,21 @@ This file defines tracker parameters which are contained in the configuration fi
 *0,database-filename = nyopt.sqlite*
 
 The first value defined the configuration file in which to write the parameter; the second is simply the string to be written, in its entirety.
+
+## 3 - Converting tracker output.
+
+In order to calculate MOTA/MOTP, the tracker's output must be converted to the algorithm's format by the extract_trajectories function, located at the top of the code (TrOPed.py). The output must be an array of arrays, as below:
+
+[
+[objectid0,frame0,X0,Y0],
+[objectid0,frame1,X1,Y1],
+[objectid0,frame2,X2,Y2],
+...]
+
+Each record represents a single detection, defined as:
+
+**objectid**: ID of the object, as identified by the tracker [int]
+
+**frame**: Frame the object was detected at the following coordinates [int]
+
+**X**, **Y**: (x,y) coordinates of the object at the given frame. In meters/world-space if homography was used, otherwise in pixels.
