@@ -26,9 +26,7 @@ The aim of this project is to calibrate video-based trackers via simulated annea
 This file defines the parameters of the optimization process.
 
 [ConfigFiles]
-
 **nConfigs**: The number of configuration files required by the tracker [between 1 and 4]
-
 **config0-config4**: Names or filepaths of the configuration files [string]
 
 [HomographyOptions]
